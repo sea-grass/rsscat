@@ -1,0 +1,23 @@
+{
+  "name": "expiry",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "miniflare --kv FEED_CACHE --kv SOURCE_CACHE --kv FEEDS --watch --debug"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "feed": "^4.2.2",
+    "itty-router": "^2.4.4",
+    "lodash": "^4.17.21",
+    "miniflare": "^1.4.1",
+    "svelte": "^3.44.0",
+    "webpack": "^5.60.0",
+    "webpack-cli": "^4.9.1",
+    "wrangler": "^0.0.2",
+    "xml2js": "^0.4.23"
+  }
+}

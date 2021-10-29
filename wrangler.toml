@@ -1,0 +1,14 @@
+name = "expiry"
+type = "webpack"
+webpack_config = "./webpack.config.js"
+route = ''
+zone_id = ''
+usage_model = ''
+compatibility_flags = []
+workers_dev = true
+compatibility_date = "2021-10-29"
+kv_namespaces = [
+  { binding = "FEEDS", id = "__" },
+  { binding = "FEED_CACHE", id = "__" },
+  { binding = "SOURCE_CACHE", id = "__" }
+]
