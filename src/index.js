@@ -9,46 +9,59 @@ import xml2js from 'xml2js';
 
 const router = Router();
 
-router.get("/", (request) => {
-  return new Response(`
-    <html>
-      <head>
-        <title>RSS Aggregator</title>
-      </head>
-      <body>
-        <h1>RSS Aggregator</h1>
-        <p class="subtitle">
-          Developed by
-          <a href="https://github.com/sea-grass">sea-grass</a>.
-          You can find <a href="https://github.com/sea-grass/expiry">the source on GitHub</a>.
-        </p>
-        <h2>Already have a feed?</h2>
-        <p>If you remember your feed id, paste it here to edit it.</p>
-        <form action="/edit" method="POST">
-          <label>
-            Feed Id
-            <input type="text" name="id" />
-          </label>
-          <button type="submit">Edit</button>
-        </form>
-      </body>
-      <h2>Want to create a new aggregate feed?</h2>
-      <p>If you want to create an aggregate RSS feed, enter a list of URLs, one per line, into the box below to generate it.</p>
-      <form action="/create" method="POST">
+router.get("/favicon.ico", () => new Response(null, {
+  status: 404
+}));
+
+router.get("/", (request) => new Response(`
+  <html>
+    <head>
+      <title>RSS Aggregator</title>
+      <style>
+        html { font-family: sans-serif; }
+        textarea { max-width: 100%; }
+      </style>
+    </head>
+    <body>
+      <h1>RSS Aggregator</h1>
+      <p><i>
+        Developed by
+        <a href="https://github.com/sea-grass">sea-grass</a>.
+        You can find <a href="https://github.com/sea-grass/rsscat">the source on GitHub</a>.
+      </i></p>
+      <p>
+        You can use this tool to generate a single RSS feed from one or many source RSS feeds.
+      </p>
+      <h2>Already have a feed?</h2>
+      <p>If you remember your feed id, paste it here to edit it.</p>
+      <form action="/edit" method="POST">
         <label>
-          RSS Feeds <br/>
-          <textarea name="feeds">http://feeds.nightvalepresents.com/welcometonightvalepodcast?format=xml</textarea>
+          Feed Id
+          <input type="text" name="id" disabled/>
         </label>
-        <br/>
-        <button type="submit">Create</button>
+        <button type="submit" disabled>Edit</button>
+        <i>Under construction. Edit functionality is coming soon.</i>
       </form>
-    </html>
-  `, {
-    headers: {
-      'Content-Type': 'text/html'
-    }
-  });
-});
+    </body>
+    <h2>Want to create a new aggregate feed?</h2>
+    <p>
+      If you want to create an aggregate RSS feed, then enter a list of URLs (one URL per line) into the box below.
+      Once you click Create, you will be redirected to the feed.
+    </p>
+    <form action="/create" method="POST">
+      <label>
+        RSS Feeds <br/>
+        <textarea name="feeds" cols="80" rows="8">http://feeds.nightvalepresents.com/welcometonightvalepodcast?format=xml</textarea>
+      </label>
+      <br/>
+      <button type="submit">Create</button>
+    </form>
+  </html>
+`, {
+  headers: {
+    'Content-Type': 'text/html'
+  }
+}));
 
 router.post("/edit", async (request) => {
   /** @type {FormData} */
@@ -74,7 +87,17 @@ router.post("/edit", async (request) => {
     });
   }
 
-  return new Response("You made it to edit " + JSON.stringify([...formData.values()]) );
+  return new Response(`
+    <html>
+      <head>
+      </head>
+      <body>
+        <p>
+          You made it to edit ${JSON.stringify([...formData.values()])}
+        </p>
+      </body>
+    </html>  
+  `);
 });
 
 router.post("/create", async (request) => {
@@ -93,15 +116,51 @@ router.post("/create", async (request) => {
   const urls = feedUrls.split('\n');
   const feedId = generateFeedId();
   await FEEDS.put(feedId, JSON.stringify(urls));
+
+  // TODO: Temporarily redirect to /created/:id until I can add an XSL to the generated feed
+  // const redirectUrl = '/feed/' + feedId;
+  const redirectUrl = '/created/' + feedId;
   return new Response(null, {
     status: 302,
     headers: {
-      'Location': '/feed/' + feedId
+      'Location': redirectUrl
     }
   });
 });
 
-router.get('/feed/:id', async (request) => {
+// TODO: This is a temporary route until XSL support is added for the generated feed  
+router.get('/created/:id', async (request) => {
+  const feedId = request.params.id;
+  if (!_.isString(feedId) || _.isEmpty(feedId)) {
+    return new Response(null, {
+      status: 302,
+      headers: {
+        'Location': '/'
+      }
+    });
+  }
+  const rssFeedUrl = 'https://rsscat.ceagrass.workers.dev/feed/' + feedId + '.xml';
+  return new Response(`
+    <html>
+      <head>
+        <style>
+          html { font-family: sans-serif; }
+        </style>
+      </head>
+      <body>
+        <p>
+          Your feed has been generated! You can add this RSS feed to your RSS reader/podcast app: <a href="${rssFeedUrl}">${rssFeedUrl}</a>.
+        </p>
+      </body>
+    </html>
+  `, {
+    headers: {
+      'Content-Type': 'text/html'
+    }
+  });
+});
+
+router.get('/feed/:id.xml', async (request) => {
   const feedId = request.params.id;
   if (!_.isString(feedId) || _.isEmpty(feedId)) {
     return new Response(null, {
@@ -113,7 +172,6 @@ router.get('/feed/:id', async (request) => {
   }
 
   const feedSources = await getFeedSources(feedId);
-
   if (!feedSources) {
     return new Response("Not found", {
       status: 404
@@ -121,15 +179,18 @@ router.get('/feed/:id', async (request) => {
   }
 
   const cachedFeed = await getCachedFeed(feedId);
-
   if (cachedFeed) {
     return new Response(cachedFeed);
   }
 
   const feed = await buildFeed(feedId, feedSources);
 
-  putCachedFeed(feedId, feed);
-  return new Response(feed.rss2(), {
+  // TODO: Find a way to add a stylesheet to the generated feed
+  const rssFeed = feed.rss2();
+
+  putCachedFeed(feedId, rssFeed);
+
+  return new Response(rssFeed, {
     headers: {
       'Content-Type': 'application/rss+xml'
     }
@@ -147,7 +208,7 @@ function getFeedSources(feedId) {
 
       return JSON.parse(value);
     })
-    .catch((error) => null);
+    .catch(() => null);
 }
 
 function getCachedFeed(feedId) {
@@ -177,7 +238,7 @@ async function buildFeed(feedId, feedSources) {
   const sourceFeeds = await Promise.all(feedSources.map(fetchFeed));
   const feed = new Feed({
     title: feedId,
-    link: 'https://expiry.ceagrass.workers.dev/feed/'+feedId
+    link: 'https://rsscat.ceagrass.workers.dev/feed/'+feedId,
   });
 
   for (let i = 0; i < sourceFeeds.length; i++) {

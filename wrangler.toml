@@ -1,4 +1,4 @@
-name = "expiry"
+name = "rsscat"
 type = "webpack"
 webpack_config = "./webpack.config.js"
 route = ''
